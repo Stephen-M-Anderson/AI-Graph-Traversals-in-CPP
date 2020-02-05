@@ -78,6 +78,10 @@ struct adj_list
 adj_list generate_graph(input_data input)
 {
 	adj_list graph;
+	state_list sl_temp;
+	sl_temp.nodes.push_back(input.live_traffic_lines[0]);
+	graph.lists.push_back(sl_temp);
+
 	input.number_of_states = 0;
 	string states_copy = input.all_states;
 	int p;
@@ -98,13 +102,37 @@ adj_list generate_graph(input_data input)
 	string curr_state;
 
 	vector<string> known_states;
-	known_states[0] = input.start;
+	known_states.push_back(input.start);
 
 	for (int j = 0; j < input.number_of_states; ++j) // ensures that we check every state
 	{
+		if (j >= graph.lists.size()) // this can happen if there's a state that only exists as a state_b. Search for state_b's that don't already have a state list.
+		{
+			for (int h = 0; h < input.number_of_lines; ++h) // check each of our traffic lines to see if they have our missing state as a state_b.
+			{
+				string temp = input.live_traffic_lines[h].state_b;
+				for (int n = 0; n < known_states.size(); ++n) // check our vector of known states to see if the state_b for our current traffic line is included somehwere
+				{
+					if (temp == known_states[n]) // if state_b matches the current element in our vector of known states; leave the for loop
+					{
+						break;
+					}
+					else if (n == (known_states.size() - 1)) // if n has checked all known states and not found a match, the current state_b is our missing state.
+					{
+						known_states.push_back(input.live_traffic_lines[h].state_b);
+						traffic_line tl_temp;
+						tl_temp.state_a = input.live_traffic_lines[h].state_b;
+
+						state_list sl_temp2;
+						sl_temp2.nodes.push_back(tl_temp);
+						graph.lists.push_back(sl_temp2);
+					}
+				}
+			}
+		}
 		for (int i = 0; i < input.number_of_lines; ++i) // checks each traffic line to see if it starts from our given state
 		{
-			if (input.live_traffic_lines[i].state_a == known_states[j]) // if our state_a matches our current known_state, add the child to the list
+			if (input.live_traffic_lines[i].state_a == known_states[j] && j + i != 0) // if our state_a matches our current known_state, add the child to the list
 			{
 				graph.lists[j].nodes.push_back(input.live_traffic_lines[i]);
 			}
@@ -122,7 +150,7 @@ adj_list generate_graph(input_data input)
 				{
 					known_states.push_back(input.live_traffic_lines[i].state_a); // add our state to our list of known states
 					state_list new_list; // create a new state_list struct. Each of this is a single adjacency linked list.
-					new_list.nodes.push_back(input.live_traffic_lines[i]); // add our current traffic line to our new state_list
+					//new_list.nodes.push_back(input.live_traffic_lines[i]); // add our current traffic line to our new state_list
 					graph.lists.push_back(new_list); // add our new_state list to our graph adjacency list.
 				}
 			}
@@ -223,7 +251,7 @@ input_data get_input(fstream &in)
 
 void print_input(input_data input) 
 {
-	cout << endl << "Test output start:" << endl;
+	cout << endl << "Input test start:" << endl;
 	cout << "1. Algo = " << input.algorithm << " = ";
 	if (input.algorithm == 1) cout << "BFS" << endl;
 	else if (input.algorithm == 2) cout << "DFS" << endl;
@@ -246,16 +274,37 @@ void print_input(input_data input)
 	cout << "7. List of Valid States: " << input.all_states << endl;
 }
 
-//vector<output_line> BFS(input_data input) 
-//{
-	
-//}
+void print_adj_list(adj_list graph)
+{
+	// struct adj_list
+	//		vector<state_list> lists;
+	// struct state_list
+	//		vector<traffic_line> nodes;
+
+	cout << endl << "Graph test start:" << endl;
+	cout << "1. Number of state lists = " << graph.lists.size() << endl;
+	cout << "2. Lists: " << endl;
+	for (int i = 0; i < graph.lists.size(); ++i)
+	{
+		cout << "    List " << i << ": " << graph.lists[i].nodes[0].state_a;
+		for (int j = 0; j < graph.lists[i].nodes.size(); ++j)
+		{
+			cout << ", (" << graph.lists[i].nodes[j].state_b << "," << graph.lists[i].nodes[j].time << ")";
+			//cout << " -" << graph.lists[i].nodes[j].time << "-> " << graph.lists[i].nodes[j].state_b;
+		}
+		cout << endl;
+	}
+}
 
 int main(int argc, char * argv[]) 
 {
 	fstream in("input.txt");
 	input_data input = get_input(in);
+	adj_list graph = generate_graph(input);
+
 	print_input(input);
+	print_adj_list(graph);
+
 	system("PAUSE");
 	return 0;
 }
