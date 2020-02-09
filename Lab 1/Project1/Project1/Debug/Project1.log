@@ -1,9 +1,9 @@
 ﻿  Source.cpp
-e:\coding\school\cse-512-ai\lab 1\project1\project1\source.cpp(90): warning C4018: '<': signed/unsigned mismatch
-e:\coding\school\cse-512-ai\lab 1\project1\project1\source.cpp(109): warning C4018: '>=': signed/unsigned mismatch
-e:\coding\school\cse-512-ai\lab 1\project1\project1\source.cpp(114): warning C4018: '<': signed/unsigned mismatch
-e:\coding\school\cse-512-ai\lab 1\project1\project1\source.cpp(142): warning C4018: '<': signed/unsigned mismatch
-e:\coding\school\cse-512-ai\lab 1\project1\project1\source.cpp(87): warning C4101: 'p': unreferenced local variable
-e:\coding\school\cse-512-ai\lab 1\project1\project1\source.cpp(287): warning C4018: '<': signed/unsigned mismatch
-e:\coding\school\cse-512-ai\lab 1\project1\project1\source.cpp(290): warning C4018: '<': signed/unsigned mismatch
-  Project1.vcxproj -> E:\Coding\School\CSE-512-AI\Lab 1\Project1\Debug\Project1.exe
+c:\users\stephen\desktop\programming\school\cse-512-ai\lab 1\project1\project1\source.cpp(91): warning C4018: '<': signed/unsigned mismatch
+c:\users\stephen\desktop\programming\school\cse-512-ai\lab 1\project1\project1\source.cpp(110): warning C4018: '>=': signed/unsigned mismatch
+c:\users\stephen\desktop\programming\school\cse-512-ai\lab 1\project1\project1\source.cpp(115): warning C4018: '<': signed/unsigned mismatch
+c:\users\stephen\desktop\programming\school\cse-512-ai\lab 1\project1\project1\source.cpp(143): warning C4018: '<': signed/unsigned mismatch
+c:\users\stephen\desktop\programming\school\cse-512-ai\lab 1\project1\project1\source.cpp(88): warning C4101: 'p': unreferenced local variable
+c:\users\stephen\desktop\programming\school\cse-512-ai\lab 1\project1\project1\source.cpp(303): warning C4018: '<': signed/unsigned mismatch
+c:\users\stephen\desktop\programming\school\cse-512-ai\lab 1\project1\project1\source.cpp(306): warning C4018: '<': signed/unsigned mismatch
+  Project1.vcxproj -> C:\Users\Stephen\Desktop\Programming\School\CSE-512-AI\Lab 1\Project1\Debug\Project1.exe

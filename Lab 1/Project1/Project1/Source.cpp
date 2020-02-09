@@ -33,7 +33,7 @@ struct traffic_line
 {
 	string state_a;
 	string state_b;
-	unsigned int time; // travel time from start to end in minutes
+	int time; // travel time from start to end in minutes
 };
 
 struct sunday_line
@@ -59,6 +59,7 @@ struct input_data
 	vector<traffic_line> live_traffic_lines;
 	int number_of_sun_lines; // number of Sunday traffic lines in input.txt
 	vector<sunday_line> sunday_traffic_lines;
+	int max_time; // tracks the max distance listed in input.txt to check for int overflow when we generate our graph
 };
 
 // the below structs are used in our adjacency list representation of our graph. An adjacency list is represented using a vector of vectors of traffic lines.
@@ -122,7 +123,7 @@ adj_list generate_graph(input_data input)
 						known_states.push_back(input.live_traffic_lines[h].state_b);
 						traffic_line tl_temp;
 						tl_temp.state_a = input.live_traffic_lines[h].state_b;
-
+						tl_temp.time = -1;
 						state_list sl_temp2;
 						sl_temp2.nodes.push_back(tl_temp);
 						graph.lists.push_back(sl_temp2);
@@ -156,6 +157,16 @@ adj_list generate_graph(input_data input)
 			}
 		}
 	}
+	/*for (int i = 0; i < graph.lists.size(); ++i)
+	{
+		for (int j = 0; j < graph.lists[i].nodes.size(); ++j)
+		{
+			if (graph.lists[i].nodes[j].time > input.max_time) // if any node has an invalid time value, it is childless. Set time = -1 to show this.
+			{
+				graph.lists[i].nodes[j].time = -1;
+			}
+		}
+	}*/
 	return graph;
 }
 
@@ -164,6 +175,7 @@ adj_list generate_graph(input_data input)
 input_data get_input(fstream &in) 
 {
 	input_data input;
+	input.max_time = 0;
 	string line;
 	int n = 0; // tracks how many lines we've read in from the file
 	int sunday_start; // this is the line in the input where the sunday line information starts. It is 3 + number_of_lines + 1
@@ -220,6 +232,10 @@ input_data get_input(fstream &in)
 				input.live_traffic_lines[i].state_b = line.substr(0, second_space); // makes state_b a substring of line from the first space to the second space
 				line.erase(0, second_space + 1); // erases everything in line except for the travel time
 				input.live_traffic_lines[i].time = stoi(line);
+				if (input.live_traffic_lines[i].time > input.max_time) // keep track of the greatest distance
+				{
+					input.max_time = input.live_traffic_lines[i].time;
+				}
 				if (input.all_states.find(input.live_traffic_lines[i].state_a) == -1) // if state_a does not exist in our list of all_states, add it
 				{
 					input.all_states.append(input.live_traffic_lines[i].state_a);
