@@ -18,6 +18,26 @@ Input.txt format:
 	<NUMBER OF SUNDAY LINES>
 	<...SUNDAY LINES...>
 	<EOF>
+
+output.txt format: 
+	<STATE> <ACCUMULATED TRAVEL TIME FROM START TO STATE>
+BFS Psuedocode:
+	function BREADTH-FIRST-SEARCH(problem) returns a solution, or failure
+		node <- a node with STATE = problem.INITIAL-STATE, PATH-COST = 0
+		frontier <- a FIFO queue with node as the only element
+		explored <- an empty set
+		loop do
+			if EMPTY?(frontier) then return failure
+			node <-  POP(frontier) // chooses the shallowest node in frontier
+			if problem.GOAL - TEST(node.STATE) then return SOLUTION(node)
+			add node.STATE to explored
+			for each action in problem.ACTIONS(node.STATE) do
+				child <-  CHILD - NODE(problem, node, action)
+				if child.STATE is not in explored or frontier then
+				frontier <-  INSERT(child, frontier)
+
+DFS Psudeocode: 
+	Same as BFS, except we use a stack instead of a queue for the frontier
 */
 
 #include <iostream>
@@ -34,12 +54,18 @@ struct traffic_line
 	string state_a;
 	string state_b;
 	int time; // travel time from start to end in minutes
+	int ucs = 0;
+
+	bool operator==(traffic_line other) const
+	{
+		return (state_a == other.state_a, state_a == other.state_b, time == other.time);
+	}
 };
 
 struct sunday_line
 {
 	string state; // current location / state
-	int sun_time; // time to get from state to goal
+	int time; // time to get from state to goal
 };
 
 struct output_line
@@ -60,6 +86,14 @@ struct input_data
 	int number_of_sun_lines; // number of Sunday traffic lines in input.txt
 	vector<sunday_line> sunday_traffic_lines;
 	int max_time; // tracks the max distance listed in input.txt to check for int overflow when we generate our graph
+};
+
+struct ucs_compare
+{
+	bool operator()(traffic_line t1, traffic_line t2)
+	{
+		return t1.ucs > t2.ucs;
+	}
 };
 
 // the below structs are used in our adjacency list representation of our graph. An adjacency list is represented using a vector of vectors of traffic lines.
@@ -157,16 +191,6 @@ adj_list generate_graph(input_data input)
 			}
 		}
 	}
-	/*for (int i = 0; i < graph.lists.size(); ++i)
-	{
-		for (int j = 0; j < graph.lists[i].nodes.size(); ++j)
-		{
-			if (graph.lists[i].nodes[j].time > input.max_time) // if any node has an invalid time value, it is childless. Set time = -1 to show this.
-			{
-				graph.lists[i].nodes[j].time = -1;
-			}
-		}
-	}*/
 	return graph;
 }
 
@@ -256,7 +280,7 @@ input_data get_input(fstream &in)
 				int space = line.find(" ");
 				input.sunday_traffic_lines[j].state = line.substr(0, space);
 				line.erase(0, space + 1);
-				input.sunday_traffic_lines[j].sun_time = stoi(line);
+				input.sunday_traffic_lines[j].time = stoi(line);
 			}
 		}
 		n++;
@@ -285,18 +309,361 @@ void print_input(input_data input)
 	cout << "6. Number of Sunday lines: " << input.number_of_sun_lines << endl;
 	for (int i = 0; i < input.number_of_sun_lines; ++i)
 	{
-		cout << "    Line " << i << ": State = " << input.sunday_traffic_lines[i].state << ", Time = " << input.sunday_traffic_lines[i].sun_time << endl;
+		cout << "    Line " << i << ": State = " << input.sunday_traffic_lines[i].state << ", Time = " << input.sunday_traffic_lines[i].time << endl;
 	}
 	cout << "7. List of Valid States: " << input.all_states << endl;
 }
 
+bool find_in_queue(queue<traffic_line> q, traffic_line target) // searches the elements of a queue to see if the 
+{
+	queue<traffic_line> qcpy = q;
+	for (int i = 0; i < q.size(); ++i)
+	{
+		if (qcpy.front() == target)
+			return true;
+		else
+			qcpy.pop();
+	}
+	return false;
+}
+
+bool find_in_queue(priority_queue<traffic_line, vector<traffic_line>, ucs_compare> q, traffic_line target)
+{
+	priority_queue<traffic_line, vector<traffic_line>, ucs_compare> qcpy = q;
+	for (int i = 0; i < q.size(); ++i)
+	{
+		if (qcpy.top() == target)
+			return true;
+		else
+			qcpy.pop();
+	}
+	return false;
+}
+
+bool find_in_stack(stack<traffic_line> q, traffic_line target)
+{
+	stack<traffic_line> qcpy = q;
+	for (int i = 0; i < q.size(); ++i)
+	{
+		if (qcpy.top() == target)
+			return true;
+		else
+			qcpy.pop();
+	}
+	return false;
+}
+
+bool find_in_vector(vector<traffic_line> v, traffic_line target)
+{
+	for (int i = 0; i < v.size(); ++i)
+	{
+		if (v[i].state_a == target.state_a && v[i].state_b == target.state_b)
+			return true;
+	}
+	return false;
+}
+
+vector<sunday_line> BFS(adj_list graph, input_data input)
+{
+	vector<sunday_line> solution; // the sunday line struct has the exact format we need to print in our output, so we reuse the struct here to store the path states.
+	queue<traffic_line> frontier;
+	vector<traffic_line> explored;
+	traffic_line current;
+	bool done = false;
+
+	frontier.push(graph.lists[0].nodes[0]); // pushes the first traffic line to the queue
+
+	while (!done)
+	{
+		/*if (frontier.empty()) // fail state
+		{
+			done = true;
+		}*/
+		current = frontier.front(); // Get our next element in the frontier 
+		frontier.pop();
+		if (current.state_a == input.goal) // if we have arrived at our state, return our path 
+		{
+			traffic_line backtrack = current; // backtrack keeps track of where we are as we work our way backwards through the graph
+			stack<traffic_line> ret_stack; // ret_stack keeps the nodes for our path, and will be popped into a vector to create our ordered path
+			ret_stack.push(current); // start our stack off by pushing the goal state, our endpoint.
+			while (ret_stack.top().state_a != input.start) // keep looping until we've made it back to start
+			{
+				for (int i = 0; i < explored.size(); ++i) // search through explored for our previous node 
+				{
+					if (explored[i].state_b == backtrack.state_a) // if backtrack is a child of this state
+					{
+						backtrack = explored[i]; 
+						ret_stack.push(backtrack);
+						break; // we break because there's no possible way for the child to have been visited before the parent and be present later in the explored vector
+					}
+				}
+			} // ret_stack now contains the return path, yay
+
+			traffic_line traf_temp;
+			sunday_line sun_temp;
+			int time_temp = 0;
+			while (ret_stack.empty() == false)
+			{
+				traf_temp = ret_stack.top();
+				ret_stack.pop();
+				sun_temp.state = traf_temp.state_a;
+				sun_temp.time = time_temp;
+				if (traf_temp.time >= 0) // so we don't add the last distance which is -1
+					time_temp += traf_temp.time;
+				solution.push_back(sun_temp);
+			}
+			/*sunday_line end;
+			end.state = input.goal;
+			end.time = time_temp;
+			solution.push_back(end);*/
+			return solution;
+		}
+		explored.push_back(current); // add our current state to Explored
+		for (int i = 0; i < graph.lists.size(); ++i) // we need to search our vector of state_lists for the state list with state_a == our current state
+		{
+			if (graph.lists[i].nodes[0].state_a == current.state_a) // we found the state_list for our current node
+			{
+				for (int j = 0; j < graph.lists[i].nodes.size(); ++j) // adds all the children of the node to frontier
+				{
+					bool fiq = find_in_queue(frontier, graph.lists[i].nodes[j]);
+					bool fiv = find_in_vector(explored, graph.lists[i].nodes[j]);
+					if (fiq == false)
+					{
+						if (fiv == false)
+						{
+							frontier.push(graph.lists[i].nodes[j]);
+						}
+					}
+				}
+				for (int j = 0; j < graph.lists.size(); ++j) // find the state list for our children 
+				{
+					if (graph.lists[j].nodes[0].state_a == current.state_b) // this is the state list for our child, aka these are our children
+					{
+						for (int k = 0; k < graph.lists[j].nodes.size(); ++k)
+						{
+							bool fiq = find_in_queue(frontier, graph.lists[j].nodes[k]);
+							bool fiv = find_in_vector(explored, graph.lists[j].nodes[k]);
+							if (fiq == false)
+							{
+								if (fiv == false)
+								{
+									frontier.push(graph.lists[j].nodes[k]);
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	vector<sunday_line> failure;
+	return failure;
+}
+
+vector<sunday_line> DFS(adj_list graph, input_data input)
+{
+	vector<sunday_line> solution; // the sunday line struct has the exact format we need to print in our output, so we reuse the struct here to store the path states.
+	stack<traffic_line> frontier;
+	vector<traffic_line> explored;
+	traffic_line current;
+	bool done = false;
+
+	frontier.push(graph.lists[0].nodes[0]); // pushes the first traffic line to the queue
+
+	while (!done)
+	{
+		/*if (frontier.empty()) // fail state
+		{
+			done = true;
+		}*/
+		current = frontier.top(); // Get our next element in the frontier 
+		frontier.pop();
+		if (current.state_a == input.goal) // if we have arrived at our state, return our path 
+		{
+			traffic_line backtrack = current; // backtrack keeps track of where we are as we work our way backwards through the graph
+			stack<traffic_line> ret_stack; // ret_stack keeps the nodes for our path, and will be popped into a vector to create our ordered path
+			ret_stack.push(current); // start our stack off by pushing the goal state, our endpoint.
+			while (ret_stack.top().state_a != input.start) // keep looping until we've made it back to start
+			{
+				for (int i = 0; i < explored.size(); ++i) // search through explored for our previous node 
+				{
+					if (explored[i].state_b == backtrack.state_a) // if backtrack is a child of this state
+					{
+						backtrack = explored[i];
+						ret_stack.push(backtrack);
+						break; // we break because there's no possible way for the child to have been visited before the parent and be present later in the explored vector
+					}
+				}
+			} // ret_stack now contains the return path, yay
+
+			traffic_line traf_temp;
+			sunday_line sun_temp;
+			int time_temp = 0;
+			while (ret_stack.empty() == false)
+			{
+				traf_temp = ret_stack.top();
+				ret_stack.pop();
+				sun_temp.state = traf_temp.state_a;
+				sun_temp.time = time_temp;
+				if (traf_temp.time >= 0) // so we don't add the last distance which is -1
+					time_temp += traf_temp.time;
+				solution.push_back(sun_temp);
+			}
+			/*sunday_line end;
+			end.state = input.goal;
+			end.time = time_temp;
+			solution.push_back(end);*/
+			return solution;
+		}
+		explored.push_back(current); // add our current state to Explored
+		for (int i = 0; i < graph.lists.size(); ++i) // we need to search our vector of state_lists for the state list with state_a == our current state
+		{
+			if (graph.lists[i].nodes[0].state_a == current.state_a) // we found the state_list for our current node
+			{
+				for (int j = 0; j < graph.lists[i].nodes.size(); ++j) // adds all the children of the node to frontier
+				{
+					bool fiq = find_in_stack(frontier, graph.lists[i].nodes[j]);
+					bool fiv = find_in_vector(explored, graph.lists[i].nodes[j]);
+					if (fiq == false)
+					{
+						if (fiv == false)
+						{
+							frontier.push(graph.lists[i].nodes[j]);
+						}
+					}
+				}
+				for (int j = 0; j < graph.lists.size(); ++j) // find the state list for our children 
+				{
+					if (graph.lists[j].nodes[0].state_a == current.state_b) // this is the state list for our child, aka these are our children
+					{
+						for (int k = 0; k < graph.lists[j].nodes.size(); ++k)
+						{
+							bool fiq = find_in_stack(frontier, graph.lists[j].nodes[k]);
+							bool fiv = find_in_vector(explored, graph.lists[j].nodes[k]);
+							if (fiq == false)
+							{
+								if (fiv == false)
+								{
+									frontier.push(graph.lists[j].nodes[k]);
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	vector<sunday_line> failure;
+	return failure;
+}
+
+vector<sunday_line> UCS(adj_list graph, input_data input)
+{
+	vector<sunday_line> solution; // the sunday line struct has the exact format we need to print in our output, so we reuse the struct here to store the path states.
+	priority_queue<traffic_line, vector<traffic_line>, ucs_compare> frontier;
+	vector<traffic_line> explored;
+	traffic_line current;
+	bool done = false;
+
+	frontier.push(graph.lists[0].nodes[0]); // pushes the first traffic line to the queue
+
+	while (!done)
+	{
+		/*if (frontier.empty()) // fail state
+		{
+			done = true;
+		}*/
+		current = frontier.top(); // Get our next element in the frontier 
+		frontier.pop();
+		if (current.state_a == input.goal) // if we have arrived at our state, return our path 
+		{
+			traffic_line backtrack = current; // backtrack keeps track of where we are as we work our way backwards through the graph
+			stack<traffic_line> ret_stack; // ret_stack keeps the nodes for our path, and will be popped into a vector to create our ordered path
+			ret_stack.push(current); // start our stack off by pushing the goal state, our endpoint.
+			while (ret_stack.top().state_a != input.start) // keep looping until we've made it back to start
+			{
+				for (int i = 0; i < explored.size(); ++i) // search through explored for our previous node 
+				{
+					if (explored[i].state_b == backtrack.state_a) // if backtrack is a child of this state
+					{
+						backtrack = explored[i];
+						ret_stack.push(backtrack);
+						break; // we break because there's no possible way for the child to have been visited before the parent and be present later in the explored vector
+					}
+				}
+			} // ret_stack now contains the return path, yay
+
+			traffic_line traf_temp;
+			sunday_line sun_temp;
+			int time_temp = 0;
+			while (ret_stack.empty() == false)
+			{
+				traf_temp = ret_stack.top();
+				ret_stack.pop();
+				sun_temp.state = traf_temp.state_a;
+				sun_temp.time = time_temp;
+				if (traf_temp.time >= 0) // so we don't add the last distance which is -1
+					time_temp += traf_temp.time;
+				solution.push_back(sun_temp);
+			}
+			/*sunday_line end;
+			end.state = input.goal;
+			end.time = time_temp;
+			solution.push_back(end);*/
+			return solution;
+		}
+		explored.push_back(current); // add our current state to Explored
+		for (int i = 0; i < graph.lists.size(); ++i) // we need to search our vector of state_lists for the state list with state_a == our current state
+		{
+			if (graph.lists[i].nodes[0].state_a == current.state_a) // we found the state_list for our current node
+			{
+				for (int j = 0; j < graph.lists[i].nodes.size(); ++j) // adds all the children of the node to frontier
+				{
+					bool fiq = find_in_queue(frontier, graph.lists[i].nodes[j]);
+					bool fiv = find_in_vector(explored, graph.lists[i].nodes[j]);
+					if (fiq == false)
+					{
+						if (fiv == false)
+						{
+							frontier.push(graph.lists[i].nodes[j]);
+						}
+					}
+				}
+				for (int j = 0; j < graph.lists.size(); ++j) // find the state list for our children 
+				{
+					if (graph.lists[j].nodes[0].state_a == current.state_b) // this is the state list for our child, aka these are our children
+					{
+						for (int k = 0; k < graph.lists[j].nodes.size(); ++k)
+						{
+							bool fiq = find_in_queue(frontier, graph.lists[j].nodes[k]);
+							bool fiv = find_in_vector(explored, graph.lists[j].nodes[k]);
+							if (fiq == false)
+							{
+								if (fiv == false)
+								{
+									frontier.push(graph.lists[j].nodes[k]);
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	vector<sunday_line> failure;
+	return failure;
+}
+
+/*vector<sunday_line> A_Star()
+{
+
+}*/
+
 void print_adj_list(adj_list graph)
 {
-	// struct adj_list
-	//		vector<state_list> lists;
-	// struct state_list
-	//		vector<traffic_line> nodes;
-
 	cout << endl << "Graph test start:" << endl;
 	cout << "1. Number of state lists = " << graph.lists.size() << endl;
 	cout << "2. Lists: " << endl;
@@ -312,81 +679,43 @@ void print_adj_list(adj_list graph)
 	}
 }
 
+void print_output(vector<sunday_line> solution)
+{
+	cout << endl << "Output test start:" << endl;
+	for (int i = 0; i < solution.size(); ++i)
+	{
+		cout << "    " << solution[i].state << " " << solution[i].time << endl;
+	}
+}
+
+void write_output(vector<sunday_line> solution, fstream &out)
+{
+	out.open("output.txt", fstream::out);
+	for (int i = 0; i < solution.size(); ++i)
+	{
+		out << solution[i].state << " " << solution[i].time << endl;
+	}
+}
+
 int main(int argc, char * argv[]) 
 {
 	fstream in("input.txt");
+	fstream out;
 	input_data input = get_input(in);
 	adj_list graph = generate_graph(input);
+	vector<sunday_line> solution;
+	if (input.algorithm == 1)
+		solution = BFS(graph, input);
+	else if (input.algorithm == 2)
+		solution = BFS(graph, input);
+
+
+	write_output(solution, out);
 
 	print_input(input);
 	print_adj_list(graph);
+	print_output(solution);
 
 	system("PAUSE");
 	return 0;
 }
-
-// First attempt at making the graph below, now I'm going to try the same thing but with adjacency lists.
-
-/*
-struct state
-{
-	string name;
-	vector<state *> child_states; // pointers to children
-	vector<int> child_costs;
-};
-
-struct graph
-{
-	vector<state> states;
-	string graph_states; // a string that contains the names of all states in the graph
-};
-
-graph make_graaph(input_data input)
-{
-	graph tree;
-	queue<state> state_queue;
-	int state_count = input.all_states.length();
-	for (int i = 0; i < state_count; ++i) // ensures that we correctly generate all states in the graph
-	{
-		for (int j = 0; j < input.number_of_lines; ++j)
-		{
-			if (input.live_traffic_lines[j].state_a == input.start) // if the live traffic line starts at our start location
-			{
-				if (tree.graph_states.find(input.start) == -1) // if we haven't yet added the head to the graph, do so.
-				{
-					state head;
-					head.name = input.start;
-					head.child_states[0]->name = input.live_traffic_lines[j].state_b;
-					head.child_costs[0] = input.live_traffic_lines[j].time;
-					tree.graph_states.append(head.name);
-					tree.graph_states.append(input.live_traffic_lines[j].state_b);
-					tree.states[0] = head;
-				}
-				else if (tree.graph_states.find(input.live_traffic_lines[j].state_b) == -1) // if we already have head but this is a new child, add it
-				{
-					state child;
-					child.name = input.live_traffic_lines[j].state_b;
-					tree.states[0].child_states.push_back(&child);
-					tree.states.push_back(child);
-					tree.states[0].child_costs.push_back(input.live_traffic_lines[j].time);
-					tree.graph_states.append(child.name);
-				}
-			}
-			else if (tree.graph_states.find(input.live_traffic_lines[j].state_a) > 0) // if the parent is not the head, but already exists as a child somewhere in the graph, add its child
-			{
-				int index;
-				for (int k = 0; k < tree.states.size; ++k) // find the index of the parent in the tree states
-				{
-					if (tree.states[k].name == input.live_traffic_lines[j].state_a)
-					{
-						index = k;
-						k = tree.states.size; // break out of for loop
-					}
-				}
-
-			}
-		}
-	}
-	return tree;
-}
-*/
