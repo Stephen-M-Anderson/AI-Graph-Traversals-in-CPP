@@ -8,37 +8,6 @@ Description:	This program will find the shortest travel path from a given start 
 				current traveling times in minutes between different locations, and traffic information from a traffic free Sunday (hueristic).
 				It will ouput its results into a file, output.txt, which will include the list of locations traveled over in the solution path 
 				(including starting and ending locations), and the accumulated time from start to each location in order of travel.
-
-Input.txt format: 
-	<ALGO>
-	<START>
-	<GOAL>
-	<NUMBER OF TRAFFIC LINES>
-	<...LIVE TRAFFIC LINES...>
-	<NUMBER OF SUNDAY LINES>
-	<...SUNDAY LINES...>
-	<EOF>
-
-output.txt format: 
-	<STATE> <ACCUMULATED TRAVEL TIME FROM START TO STATE>
-
-BFS Psuedocode:
-	function BREADTH-FIRST-SEARCH(problem) returns a solution, or failure
-		node <- a node with STATE = problem.INITIAL-STATE, PATH-COST = 0
-		frontier <- a FIFO queue with node as the only element
-		explored <- an empty set
-		loop do
-			if EMPTY?(frontier) then return failure
-			node <-  POP(frontier) // chooses the shallowest node in frontier
-			if problem.GOAL - TEST(node.STATE) then return SOLUTION(node)
-			add node.STATE to explored
-			for each action in problem.ACTIONS(node.STATE) do
-				child <-  CHILD - NODE(problem, node, action)
-				if child.STATE is not in explored or frontier then
-				frontier <-  INSERT(child, frontier)
-
-DFS Psudeocode: 
-	Same as BFS, except we use a stack instead of a queue for the frontier
 */
 
 #include <iostream>
@@ -297,31 +266,6 @@ input_data get_input(fstream &in)
 		getline(in, line);
 	}
 	return input;
-}
-
-void print_input(input_data input) 
-{
-	cout << endl << "Input test start:" << endl;
-	cout << "1. Algo = " << input.algorithm << " = ";
-	if (input.algorithm == 1) cout << "BFS" << endl;
-	else if (input.algorithm == 2) cout << "DFS" << endl;
-	else if (input.algorithm == 3) cout << "UCS" << endl;
-	else if (input.algorithm == 4) cout << "A*" << endl;
-	else if (input.algorithm == -1) cout << "Invalid Algorithm" << endl;
-	cout << "2. Start = " << input.start << endl;
-	cout << "3. Goal = " << input.goal << endl;
-	cout << "4. Number of traffic lines = " << input.number_of_lines << endl;
-	cout << "5. Traffic line info: " << endl;
-	for (int i = 0; i < input.number_of_lines; ++i)
-	{
-		cout << "    Line " << i << ": Start = " << input.live_traffic_lines[i].state_a << ", End = " << input.live_traffic_lines[i].state_b << ", Time = " << input.live_traffic_lines[i].time << endl;
-	}
-	cout << "6. Number of Sunday lines: " << input.number_of_sun_lines << endl;
-	for (int i = 0; i < input.number_of_sun_lines; ++i)
-	{
-		cout << "    Line " << i << ": State = " << input.sunday_traffic_lines[i].state << ", Time = " << input.sunday_traffic_lines[i].time << endl;
-	}
-	cout << "7. List of Valid States: " << input.all_states << endl;
 }
 
 bool find_in_queue(queue<traffic_line> q, traffic_line target) // searches the elements of a queue to see if the 
@@ -835,32 +779,6 @@ vector<sunday_line> A_Star(adj_list graph, input_data input)
 	return failure;
 }
 
-void print_adj_list(adj_list graph)
-{
-	cout << endl << "Graph test start:" << endl;
-	cout << "1. Number of state lists = " << graph.lists.size() << endl;
-	cout << "2. Lists: " << endl;
-	for (int i = 0; i < graph.lists.size(); ++i)
-	{
-		cout << "    List " << i << ": " << graph.lists[i].nodes[0].state_a;
-		for (int j = 0; j < graph.lists[i].nodes.size(); ++j)
-		{
-			cout << ", (" << graph.lists[i].nodes[j].state_b << "," << graph.lists[i].nodes[j].time << ")";
-			//cout << " -" << graph.lists[i].nodes[j].time << "-> " << graph.lists[i].nodes[j].state_b;
-		}
-		cout << endl;
-	}
-}
-
-void print_output(vector<sunday_line> solution)
-{
-	cout << endl << "Output test start:" << endl;
-	for (int i = 0; i < solution.size(); ++i)
-	{
-		cout << "    " << solution[i].state << " " << solution[i].time << endl;
-	}
-}
-
 void write_output(vector<sunday_line> solution, fstream &out)
 {
 	out.open("output.txt", fstream::out);
@@ -877,6 +795,7 @@ int main(int argc, char * argv[])
 	input_data input = get_input(in);
 	adj_list graph = generate_graph(input);
 	vector<sunday_line> solution;
+
 	if (input.algorithm == 1)
 		solution = BFS(graph, input);
 	else if (input.algorithm == 2)
@@ -888,10 +807,5 @@ int main(int argc, char * argv[])
 
 	write_output(solution, out);
 
-	print_input(input);
-	print_adj_list(graph);
-	print_output(solution);
-
-	system("PAUSE");
 	return 0;
 }
