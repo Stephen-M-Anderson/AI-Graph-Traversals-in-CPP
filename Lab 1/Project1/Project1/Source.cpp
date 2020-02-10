@@ -56,6 +56,7 @@ struct traffic_line
 	string state_b;
 	int time; // travel time from start to end in minutes
 	int ucs = 0;
+	int fn;
 
 	bool operator==(traffic_line other) const
 	{
@@ -94,6 +95,14 @@ struct ucs_compare
 	bool operator()(traffic_line t1, traffic_line t2)
 	{
 		return t1.ucs > t2.ucs;
+	}
+};
+
+struct astar_compare
+{
+	bool operator()(traffic_line t1, traffic_line t2)
+	{
+		return t1.fn > t2.fn;
 	}
 };
 
@@ -331,6 +340,19 @@ bool find_in_queue(queue<traffic_line> q, traffic_line target) // searches the e
 bool find_in_queue(priority_queue<traffic_line, vector<traffic_line>, ucs_compare> q, traffic_line target)
 {
 	priority_queue<traffic_line, vector<traffic_line>, ucs_compare> qcpy = q;
+	for (int i = 0; i < q.size(); ++i)
+	{
+		if (qcpy.top() == target)
+			return true;
+		else
+			qcpy.pop();
+	}
+	return false;
+}
+
+bool find_in_queue(priority_queue<traffic_line, vector<traffic_line>, astar_compare> q, traffic_line target)
+{
+	priority_queue<traffic_line, vector<traffic_line>, astar_compare> qcpy = q;
 	for (int i = 0; i < q.size(); ++i)
 	{
 		if (qcpy.top() == target)
@@ -679,10 +701,139 @@ vector<sunday_line> UCS(adj_list graph, input_data input)
 	return failure;
 }
 
-/*vector<sunday_line> A_Star()
+int get_sun_time (input_data input, traffic_line current)
 {
+	for (int i = 0; i < input.sunday_traffic_lines.size(); ++i)
+	{
+		if (current.state_b == input.sunday_traffic_lines[i].state)
+		{
+			return input.sunday_traffic_lines[i].time;
+		}
+	}
+}
 
-}*/
+vector<sunday_line> A_Star(adj_list graph, input_data input)
+{
+	vector<sunday_line> solution; // the sunday line struct has the exact format we need to print in our output, so we reuse the struct here to store the path states.
+	priority_queue<traffic_line, vector<traffic_line>, astar_compare> frontier;
+	vector<traffic_line> explored;
+	traffic_line current;
+	bool done = false;
+
+	graph.lists[0].nodes[0].ucs = graph.lists[0].nodes[0].time;
+
+	frontier.push(graph.lists[0].nodes[0]); // pushes the first traffic line to the queue
+
+	for (int i = 0; i < graph.lists[0].nodes.size(); ++i)
+	{
+		int hueristic = get_sun_time(input, graph.lists[0].nodes[i]);
+		graph.lists[0].nodes[i].ucs = graph.lists[0].nodes[i].time;
+		graph.lists[0].nodes[i].fn = graph.lists[0].nodes[i].ucs + hueristic;
+	}
+
+	while (!done)
+	{
+		/*if (frontier.empty()) // fail state
+		{
+			done = true;
+		}*/
+		current = frontier.top(); // Get our next element in the frontier 
+		frontier.pop();
+		if (current.state_a == input.goal) // if we have arrived at our state, return our path 
+		{
+			traffic_line backtrack = current; // backtrack keeps track of where we are as we work our way backwards through the graph
+			stack<traffic_line> ret_stack; // ret_stack keeps the nodes for our path, and will be popped into a vector to create our ordered path
+			ret_stack.push(current); // start our stack off by pushing the goal state, our endpoint.
+			while (ret_stack.top().state_a != input.start) // keep looping until we've made it back to start
+			{
+				for (int i = 0; i < explored.size(); ++i) // search through explored for our previous node 
+				{
+					if (explored[i].state_b == backtrack.state_a) // if backtrack is a child of this state
+					{
+						backtrack = explored[i];
+						ret_stack.push(backtrack);
+						break; // we break because there's no possible way for the child to have been visited before the parent and be present later in the explored vector
+					}
+				}
+			} // ret_stack now contains the return path, yay
+
+			traffic_line traf_temp;
+			sunday_line sun_temp;
+			int time_temp = 0;
+			while (ret_stack.empty() == false)
+			{
+				traf_temp = ret_stack.top();
+				ret_stack.pop();
+				sun_temp.state = traf_temp.state_a;
+				sun_temp.time = time_temp;
+				if (traf_temp.time >= 0) // so we don't add the last distance which is -1
+					time_temp += traf_temp.time;
+				solution.push_back(sun_temp);
+			}
+			/*sunday_line end;
+			end.state = input.goal;
+			end.time = time_temp;
+			solution.push_back(end);*/
+			return solution;
+		}
+		explored.push_back(current); // add our current state to Explored
+		for (int i = 0; i < graph.lists.size(); ++i) // we need to search our vector of state_lists for the state list with state_a == our current state
+		{
+			if (graph.lists[i].nodes[0].state_a == current.state_a) // we found the state_list for our current node
+			{
+				for (int j = 0; j < graph.lists[i].nodes.size(); ++j) // this loop is to find our current state and assign it's UCS value, if it isn't already assigned
+				{
+					if (graph.lists[i].nodes[j].state_a == current.state_a && graph.lists[i].nodes[j].state_b == current.state_b) // this is the current state
+					{
+						if (graph.lists[i].nodes[j].ucs == 0)
+						{
+							graph.lists[i].nodes[j].ucs = graph.lists[i].nodes[j].time;
+							current.ucs = current.time;
+						}
+					}
+				}
+
+				for (int j = 0; j < graph.lists[i].nodes.size(); ++j) // adds all the siblings of the node to frontier
+				{
+					bool fiq = find_in_queue(frontier, graph.lists[i].nodes[j]);
+					bool fiv = find_in_vector(explored, graph.lists[i].nodes[j]);
+					if (fiq == false)
+					{
+						if (fiv == false)
+						{
+							//graph.lists[i].nodes[j].ucs = current.ucs + graph.lists[i].nodes[j].time; // update ucs score to be a running total
+							frontier.push(graph.lists[i].nodes[j]);
+						}
+					}
+				}
+				for (int j = 0; j < graph.lists.size(); ++j) // find the state list for our children 
+				{
+					if (graph.lists[j].nodes[0].state_a == current.state_b) // this is the state list for our child, aka these are our children
+					{
+						for (int k = 0; k < graph.lists[j].nodes.size(); ++k)
+						{
+							bool fiq = find_in_queue(frontier, graph.lists[j].nodes[k]);
+							bool fiv = find_in_vector(explored, graph.lists[j].nodes[k]);
+							if (fiq == false)
+							{
+								if (fiv == false)
+								{
+									int hueristic = get_sun_time(input, graph.lists[j].nodes[k]);
+									
+									graph.lists[j].nodes[k].fn = current.ucs + graph.lists[j].nodes[k].time + hueristic; // update ucs score to be a running total
+									frontier.push(graph.lists[j].nodes[k]);
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	vector<sunday_line> failure;
+	return failure;
+}
 
 void print_adj_list(adj_list graph)
 {
@@ -732,7 +883,8 @@ int main(int argc, char * argv[])
 		solution = BFS(graph, input);
 	else if (input.algorithm == 3)
 		solution = UCS(graph, input);
-
+	else if (input.algorithm == 4)
+		solution = A_Star(graph, input);
 
 	write_output(solution, out);
 
