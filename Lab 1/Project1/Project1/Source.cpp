@@ -20,7 +20,8 @@ Input.txt format:
 	<EOF>
 
 output.txt format: 
-	<STATE> <ACCUMULATED TRAVEL TIME FROM START TO STATE>
+	<STATE> <ACCUMULATED TRAVEL TIME FROM START TO STATE>
+
 BFS Psuedocode:
 	function BREADTH-FIRST-SEARCH(problem) returns a solution, or failure
 		node <- a node with STATE = problem.INITIAL-STATE, PATH-COST = 0
@@ -571,6 +572,11 @@ vector<sunday_line> UCS(adj_list graph, input_data input)
 
 	frontier.push(graph.lists[0].nodes[0]); // pushes the first traffic line to the queue
 
+	for (int i = 0; i < graph.lists[0].nodes.size(); ++i)
+	{
+		graph.lists[0].nodes[i].ucs = graph.lists[0].nodes[i].time;
+	}
+
 	while (!done)
 	{
 		/*if (frontier.empty()) // fail state
@@ -633,7 +639,7 @@ vector<sunday_line> UCS(adj_list graph, input_data input)
 					}
 				}
 
-				for (int j = 0; j < graph.lists[i].nodes.size(); ++j) // adds all the children of the node to frontier
+				for (int j = 0; j < graph.lists[i].nodes.size(); ++j) // adds all the siblings of the node to frontier
 				{
 					bool fiq = find_in_queue(frontier, graph.lists[i].nodes[j]);
 					bool fiv = find_in_vector(explored, graph.lists[i].nodes[j]);
@@ -641,7 +647,7 @@ vector<sunday_line> UCS(adj_list graph, input_data input)
 					{
 						if (fiv == false)
 						{
-							graph.lists[i].nodes[j].ucs = current.ucs + graph.lists[i].nodes[j].time; // update ucs score to be a running total
+							//graph.lists[i].nodes[j].ucs = current.ucs + graph.lists[i].nodes[j].time; // update ucs score to be a running total
 							frontier.push(graph.lists[i].nodes[j]);
 						}
 					}
@@ -658,6 +664,7 @@ vector<sunday_line> UCS(adj_list graph, input_data input)
 							{
 								if (fiv == false)
 								{
+									graph.lists[j].nodes[k].ucs = current.ucs + graph.lists[j].nodes[k].time; // update ucs score to be a running total
 									frontier.push(graph.lists[j].nodes[k]);
 								}
 							}
@@ -723,6 +730,8 @@ int main(int argc, char * argv[])
 		solution = BFS(graph, input);
 	else if (input.algorithm == 2)
 		solution = BFS(graph, input);
+	else if (input.algorithm == 3)
+		solution = UCS(graph, input);
 
 
 	write_output(solution, out);
